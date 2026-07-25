@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>No-Website Business Finder</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      min-height: 100vh;
+    }
+
+    header {
+      background: #1a1d2e;
+      border-bottom: 1px solid #2d3148;
+      padding: 20px 32px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    header h1 { font-size: 1.4rem; font-weight: 700; color: #fff; }
+    header .badge {
+      background: #f97316;
+      color: #fff;
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 999px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .layout { display: grid; grid-template-columns: 320px 1fr; min-height: calc(100vh - 65px); }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      background: #13161f;
+      border-right: 1px solid #2d3148;
+      padding: 24px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .field-group label {
+      display: block;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 6px;
+    }
+
+    .field-group select,
+    .field-group input {
+      width: 100%;
+      background: #1e2235;
+      border: 1px solid #2d3148;
+      border-radius: 8px;
+      color: #e2e8f0;
+      padding: 9px 12px;
+      font-size: 0.875rem;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .field-group select:focus,
+    .field-group input:focus { border-color: #6366f1; }
+    .field-group select option { background: #1e2235; }
+
+    .section-title {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 10px;
+    }
+
+    .categories-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .category-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: #1e2235;
+      border: 1px solid #2d3148;
+      border-radius: 8px;
+      padding: 8px 12px;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .category-row:hover { border-color: #6366f1; background: #252843; }
+    .category-row.active { border-color: #6366f1; background: #1e2040; }
+    .category-row input[type="checkbox"] { accent-color: #6366f1; width: 16px; height: 16px; cursor: pointer; }
+    .category-row .cat-label { font-size: 0.875rem; flex: 1; }
+    .category-row .limit-input {
+      width: 60px;
+      background: #0f1117;
+      border: 1px solid #2d3148;
+      border-radius: 6px;
+      color: #e2e8f0;
+      padding: 4px 8px;
+      font-size: 0.8rem;
+      text-align: center;
+      outline: none;
+    }
+    .category-row .limit-input:focus { border-color: #6366f1; }
+    .category-row:not(.active) .limit-input { opacity: 0.4; pointer-events: none; }
+
+    .limit-hint {
+      font-size: 0.7rem;
+      color: #64748b;
+      text-align: right;
+      margin-top: -6px;
+    }
+
+    .btn-search {
+      width: 100%;
+      background: #6366f1;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.1s;
+    }
+    .btn-search:hover { background: #5254cc; }
+    .btn-search:active { transform: scale(0.98); }
+    .btn-search:disabled { background: #2d3148; color: #64748b; cursor: not-allowed; transform: none; }
+
+    /* ── Main content ── */
+    .main { padding: 24px 28px; display: flex; flex-direction: column; gap: 20px; }
+
+    .stats-bar {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .stat-card {
+      background: #1a1d2e;
+      border: 1px solid #2d3148;
+      border-radius: 10px;
+      padding: 14px 20px;
+      min-width: 140px;
+    }
+    .stat-card .label { font-size: 0.7rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.06em; }
+    .stat-card .value { font-size: 1.6rem; font-weight: 700; margin-top: 4px; }
+    .stat-card.highlight .value { color: #f97316; }
+
+    .toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .toolbar-left { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+
+    .filter-input {
+      background: #1e2235;
+      border: 1px solid #2d3148;
+      border-radius: 8px;
+      color: #e2e8f0;
+      padding: 8px 14px;
+      font-size: 0.875rem;
+      outline: none;
+      width: 220px;
+      transition: border-color 0.15s;
+    }
+    .filter-input:focus { border-color: #6366f1; }
+
+    .cat-filter {
+      background: #1e2235;
+      border: 1px solid #2d3148;
+      border-radius: 8px;
+      color: #e2e8f0;
+      padding: 8px 12px;
+      font-size: 0.875rem;
+      outline: none;
+    }
+
+    .btn-download {
+      background: #10b981;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 9px 18px;
+      font-size: 0.875rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn-download:hover { background: #059669; }
+    .btn-download:disabled { background: #2d3148; color: #64748b; cursor: not-allowed; }
+
+    /* ── Table ── */
+    .table-wrap {
+      background: #1a1d2e;
+      border: 1px solid #2d3148;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    table { width: 100%; border-collapse: collapse; }
+    thead { background: #13161f; }
+    th {
+      padding: 12px 16px;
+      text-align: left;
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      border-bottom: 1px solid #2d3148;
+      white-space: nowrap;
+    }
+    td {
+      padding: 12px 16px;
+      font-size: 0.875rem;
+      border-bottom: 1px solid #1e2235;
+      vertical-align: middle;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #1e2235; }
+
+    .business-name { font-weight: 600; color: #fff; }
+    .phone-cell { color: #94a3b8; font-family: monospace; font-size: 0.82rem; }
+    .address-cell { color: #94a3b8; font-size: 0.82rem; max-width: 200px; }
+    .cat-pill {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      background: #1e2235;
+      color: #a5b4fc;
+      border: 1px solid #312e81;
+    }
+    .type-cell { color: #64748b; font-size: 0.78rem; max-width: 160px; }
+    .rating-cell { color: #fbbf24; font-size: 0.82rem; }
+    .maps-link {
+      color: #6366f1;
+      text-decoration: none;
+      font-size: 0.8rem;
+      white-space: nowrap;
+    }
+    .maps-link:hover { color: #818cf8; text-decoration: underline; }
+
+    /* ── States ── */
+    .empty-state {
+      padding: 60px 20px;
+      text-align: center;
+      color: #475569;
+    }
+    .empty-state .icon { font-size: 3rem; margin-bottom: 12px; }
+    .empty-state p { font-size: 1rem; }
+    .empty-state small { font-size: 0.8rem; color: #334155; margin-top: 6px; display: block; }
+
+    .progress-wrap {
+      padding: 60px 20px;
+      text-align: center;
+    }
+    .progress-label { color: #94a3b8; font-size: 0.95rem; margin-bottom: 20px; }
+    .spinner {
+      width: 40px; height: 40px;
+      border: 3px solid #2d3148;
+      border-top-color: #6366f1;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .error-banner {
+      background: #7f1d1d;
+      border: 1px solid #991b1b;
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-size: 0.875rem;
+      color: #fca5a5;
+    }
+
+    .no-results {
+      padding: 40px;
+      text-align: center;
+      color: #475569;
+      font-size: 0.875rem;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>🚫 No-Website Business Finder</h1>
+  <span class="badge">Lead Gen</span>
+</header>
+
+<div class="layout">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="field-group">
+      <label>Country</label>
+      <select id="country"></select>
+    </div>
+    <div class="field-group" id="state-wrap">
+      <label>State / Province</label>
+      <select id="state"></select>
+    </div>
+    <div class="field-group">
+      <label>City</label>
+      <input type="text" id="city" placeholder="e.g. Cedar Rapids" list="city-list" autocomplete="off">
+      <datalist id="city-list"></datalist>
+    </div>
+
+    <div>
+      <div class="section-title">Categories <span style="color:#475569;font-weight:400;text-transform:none;letter-spacing:0">(check to include, set limit)</span></div>
+      <div class="categories-grid" id="categories-grid"></div>
+    </div>
+
+    <div class="limit-hint">Limit = max businesses queried per category</div>
+
+    <button class="btn-search" id="btn-search">🔍 Find Leads</button>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+    <!-- Stats -->
+    <div class="stats-bar" id="stats-bar" style="display:none">
+      <div class="stat-card highlight">
+        <div class="label">No Website</div>
+        <div class="value" id="stat-leads">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Had Website</div>
+        <div class="value" id="stat-had">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Total Scanned</div>
+        <div class="value" id="stat-total">0</div>
+      </div>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="toolbar" id="toolbar" style="display:none">
+      <div class="toolbar-left">
+        <input class="filter-input" id="filter-name" placeholder="Filter by name…" oninput="renderTable()">
+        <select class="cat-filter" id="filter-cat" onchange="renderTable()">
+          <option value="">All categories</option>
+        </select>
+      </div>
+      <button class="btn-download" id="btn-download" onclick="downloadCsv()">
+        ⬇ Download CSV
+      </button>
+    </div>
+
+    <!-- Table -->
+    <div class="table-wrap" id="table-wrap">
+      <div class="empty-state">
+        <div class="icon">🏢</div>
+        <p>Configure a search and click <strong>Find Leads</strong></p>
+        <small>Results show businesses with no website on their Google Maps profile</small>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+  const CATEGORIES = ['Retail', 'Restaurant', 'Service', 'Contractor', 'Auto', 'Real Estate', 'Church', 'Health & Wellness'];
+  let allLeads = [];
+  let lastStats = {};
+
+  // ── Location dropdowns ──────────────────────────────────────────────────────
+
+  async function loadCountries() {
+    const res = await fetch('/locations/countries');
+    const countries = await res.json();
+    const sel = document.getElementById('country');
+    countries.forEach(c => {
+      const opt = document.createElement('option');
+      opt.value = c.code;
+      opt.textContent = `${c.emoji} ${c.name}`.trim();
+      if (c.code === 'US') opt.selected = true;
+      sel.appendChild(opt);
+    });
+    await loadStates();
+  }
+
+  async function loadStates() {
+    const country = document.getElementById('country').value;
+    const res = await fetch(`/locations/states?country=${country}`);
+    const states = await res.json();
+    const sel = document.getElementById('state');
+    const wrap = document.getElementById('state-wrap');
+    sel.innerHTML = '';
+    if (!states.length) {
+      wrap.style.display = 'none';
+    } else {
+      wrap.style.display = '';
+      const blank = document.createElement('option');
+      blank.value = ''; blank.textContent = '— Any —';
+      sel.appendChild(blank);
+      states.forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s.name; opt.textContent = s.name;
+        if (s.name === 'Iowa') opt.selected = true;
+        sel.appendChild(opt);
+      });
+    }
+    await loadCities();
+  }
+
+  async function loadCities() {
+    const country = document.getElementById('country').value;
+    const state = document.getElementById('state').value;
+    const params = new URLSearchParams({ country });
+    if (state) params.set('state', state);
+    const res = await fetch(`/locations/cities?${params}`);
+    const cities = await res.json();
+    const dl = document.getElementById('city-list');
+    dl.innerHTML = '';
+    cities.forEach(c => {
+      const opt = document.createElement('option');
+      opt.value = c;
+      dl.appendChild(opt);
+    });
+  }
+
+  document.getElementById('country').addEventListener('change', loadStates);
+  document.getElementById('state').addEventListener('change', loadCities);
+
+  // ── Category checkboxes ─────────────────────────────────────────────────────
+
+  function buildCategories() {
+    const grid = document.getElementById('categories-grid');
+    CATEGORIES.forEach(cat => {
+      const row = document.createElement('div');
+      row.className = 'category-row';
+      row.dataset.cat = cat;
+
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.id = `cat-${cat}`;
+      cb.addEventListener('change', () => {
+        row.classList.toggle('active', cb.checked);
+      });
+
+      const lbl = document.createElement('label');
+      lbl.htmlFor = `cat-${cat}`;
+      lbl.className = 'cat-label';
+      lbl.textContent = cat;
+      lbl.style.cursor = 'pointer';
+
+      const limitInput = document.createElement('input');
+      limitInput.type = 'number';
+      limitInput.className = 'limit-input';
+      limitInput.value = 100;
+      limitInput.min = 10;
+      limitInput.max = 500;
+      limitInput.title = 'Max businesses to query';
+      limitInput.addEventListener('click', e => e.stopPropagation());
+
+      row.appendChild(cb);
+      row.appendChild(lbl);
+      row.appendChild(limitInput);
+      row.addEventListener('click', (e) => {
+        if (e.target === limitInput) return;
+        cb.checked = !cb.checked;
+        row.classList.toggle('active', cb.checked);
+      });
+
+      grid.appendChild(row);
+    });
+  }
+
+  function getSelectedCategories() {
+    return Array.from(document.querySelectorAll('.category-row')).filter(row => {
+      return row.querySelector('input[type="checkbox"]').checked;
+    }).map(row => ({
+      name: row.dataset.cat,
+      limit: parseInt(row.querySelector('.limit-input').value) || 100
+    }));
+  }
+
+  // ── Search ──────────────────────────────────────────────────────────────────
+
+  document.getElementById('btn-search').addEventListener('click', async () => {
+    const city = document.getElementById('city').value.trim();
+    const state = document.getElementById('state').value;
+    const country = document.getElementById('country').value;
+    const categories = getSelectedCategories();
+
+    if (!city) { alert('Please enter a city.'); return; }
+    if (!categories.length) { alert('Select at least one category.'); return; }
+
+    const btn = document.getElementById('btn-search');
+    btn.disabled = true;
+    btn.textContent = '⏳ Searching…';
+
+    document.getElementById('stats-bar').style.display = 'none';
+    document.getElementById('toolbar').style.display = 'none';
+    document.getElementById('table-wrap').innerHTML = `
+      <div class="progress-wrap">
+        <div class="progress-label">Fetching businesses and filtering those without websites…<br><small style="color:#475569">This can take a minute depending on categories selected</small></div>
+        <div class="spinner"></div>
+      </div>`;
+
+    try {
+      const res = await fetch('/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ city, state, country, categories })
+      });
+      const data = await res.json();
+
+      if (!res.ok) throw new Error(data.error || 'Search failed');
+
+      allLeads = data.leads || [];
+      lastStats = data.stats || {};
+
+      // Update stats
+      document.getElementById('stat-leads').textContent = lastStats.no_website || 0;
+      document.getElementById('stat-had').textContent = lastStats.had_website || 0;
+      document.getElementById('stat-total').textContent = lastStats.total_fetched || 0;
+      document.getElementById('stats-bar').style.display = 'flex';
+
+      // Build category filter
+      const cats = [...new Set(allLeads.map(l => l.category))].sort();
+      const catSel = document.getElementById('filter-cat');
+      catSel.innerHTML = '<option value="">All categories</option>';
+      cats.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c; opt.textContent = c;
+        catSel.appendChild(opt);
+      });
+
+      document.getElementById('toolbar').style.display = 'flex';
+
+      if (data.errors && data.errors.length) {
+        console.warn('Some queries had errors:', data.errors);
+      }
+
+      renderTable();
+    } catch (err) {
+      document.getElementById('table-wrap').innerHTML = `
+        <div class="error-banner" style="margin:20px">
+          ❌ Search failed: ${err.message}
+        </div>`;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '🔍 Find Leads';
+    }
+  });
+
+  // ── Render table ────────────────────────────────────────────────────────────
+
+  function renderTable() {
+    const nameFilter = document.getElementById('filter-name').value.toLowerCase();
+    const catFilter = document.getElementById('filter-cat').value;
+
+    const filtered = allLeads.filter(l => {
+      if (nameFilter && !l.name.toLowerCase().includes(nameFilter)) return false;
+      if (catFilter && l.category !== catFilter) return false;
+      return true;
+    });
+
+    if (!filtered.length) {
+      document.getElementById('table-wrap').innerHTML = `<div class="no-results">No leads match your filters.</div>`;
+      return;
+    }
+
+    const rows = filtered.map(l => `
+      <tr>
+        <td><span class="business-name">${esc(l.name)}</span></td>
+        <td class="phone-cell">${esc(l.phone) || '<span style="color:#334155">—</span>'}</td>
+        <td class="address-cell">${esc(l.address)}</td>
+        <td><span class="cat-pill">${esc(l.category)}</span></td>
+        <td class="type-cell">${esc(l.business_type)}</td>
+        <td class="rating-cell">${l.rating ? `⭐ ${l.rating}${l.reviews ? ` <span style="color:#475569;font-size:0.75rem">(${l.reviews})</span>` : ''}` : '—'}</td>
+        <td><a class="maps-link" href="${esc(l.maps_url)}" target="_blank" rel="noopener">View ↗</a></td>
+      </tr>`).join('');
+
+    document.getElementById('table-wrap').innerHTML = `
+      <table>
+        <thead>
+          <tr>
+            <th>Business Name</th>
+            <th>Phone</th>
+            <th>Address</th>
+            <th>Category</th>
+            <th>Type</th>
+            <th>Rating</th>
+            <th>Maps</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+  }
+
+  function esc(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // ── CSV download ────────────────────────────────────────────────────────────
+
+  async function downloadCsv() {
+    const city = document.getElementById('city').value.trim();
+    const state = document.getElementById('state').value;
+    const filename = `no-website-leads-${city.toLowerCase().replace(/\s+/g,'-')}${state ? '-'+state.toLowerCase().replace(/\s+/g,'-') : ''}-${new Date().toISOString().slice(0,10)}.csv`;
+
+    const res = await fetch('/download', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ leads: allLeads, filename })
+    });
+
+    if (!res.ok) { alert('Download failed'); return; }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  // ── Init ────────────────────────────────────────────────────────────────────
+  buildCategories();
+  loadCountries();
+</script>
+</body>
+</html>
