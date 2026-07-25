@@ -386,6 +386,79 @@ app.post('/download', requireAuth, (req, res) => {
   res.send(csv);
 });
 
+// ── Saved leads ────────────────────────────────────────────────────────────────
+
+// Build a stable dedup key for a lead (matches the search-time logic)
+function leadDedupKey(l) {
+  return l.place_id || `${l.name}|${l.address || ''}`;
+}
+
+// Save one or more selected leads for the current user. Idempotent: saving the
+// same business twice is ignored (unique index on user_id + dedup_key).
+app.post('/leads', requireAuth, (req, res) => {
+  const incoming = Array.isArray(req.body.leads) ? req.body.leads : [];
+  if (!incoming.length) return res.status(400).json({ error: 'No leads to save' });
+
+  const insert = db.prepare(`
+    INSERT OR IGNORE INTO leads
+      (user_id, dedup_key, name, phone, address, city, state, category,
+       business_type, rating, reviews, maps_url, place_id)
+    VALUES
+      (@user_id, @dedup_key, @name, @phone, @address, @city, @state, @category,
+       @business_type, @rating, @reviews, @maps_url, @place_id)
+  `);
+
+  const saveMany = db.transaction((rows) => {
+    let saved = 0;
+    for (const l of rows) {
+      if (!l || !l.name) continue;
+      const info = insert.run({
+        user_id: req.session.userId,
+        dedup_key: leadDedupKey(l),
+        name: l.name,
+        phone: l.phone || '',
+        address: l.address || '',
+        city: l.city || '',
+        state: l.state || '',
+        category: l.category || '',
+        business_type: l.business_type || '',
+        rating: (l.rating || '').toString(),
+        reviews: (l.reviews || '').toString(),
+        maps_url: l.maps_url || '',
+        place_id: l.place_id || ''
+      });
+      saved += info.changes;
+    }
+    return saved;
+  });
+
+  const saved = saveMany(incoming);
+  const skipped = incoming.length - saved;
+  res.json({ ok: true, saved, skipped });
+});
+
+// List the current user's saved leads (newest first)
+app.get('/leads', requireAuth, (req, res) => {
+  const rows = db.prepare(`
+    SELECT id, name, phone, address, city, state, category,
+           business_type, rating, reviews, maps_url, place_id, created_at
+    FROM leads
+    WHERE user_id = ?
+    ORDER BY created_at DESC, id DESC
+  `).all(req.session.userId);
+  res.json({ leads: rows });
+});
+
+// Remove one saved lead (scoped to the owner)
+app.delete('/leads/:id', requireAuth, (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (!id) return res.status(400).json({ error: 'Invalid lead id' });
+  const info = db.prepare('DELETE FROM leads WHERE id = ? AND user_id = ?')
+    .run(id, req.session.userId);
+  if (!info.changes) return res.status(404).json({ error: 'Lead not found' });
+  res.json({ ok: true });
+});
+
 app.listen(PORT, () => {
   console.log(`No-Website Finder running at http://localhost:${PORT}`);
 });

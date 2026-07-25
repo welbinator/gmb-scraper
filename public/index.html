@@ -352,6 +352,95 @@
       color: #475569;
       font-size: 0.875rem;
     }
+
+    /* ── Tabs ── */
+    .tabs {
+      display: flex;
+      gap: 4px;
+      border-bottom: 1px solid #2d3148;
+      margin-bottom: 4px;
+    }
+    .tab {
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: #94a3b8;
+      font-size: 0.9rem;
+      font-weight: 600;
+      padding: 10px 16px;
+      cursor: pointer;
+      transition: color 0.15s, border-color 0.15s;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+    .tab:hover { color: #e2e8f0; }
+    .tab.active { color: #fff; border-bottom-color: #6366f1; }
+    .tab .tab-count {
+      background: #1e2235;
+      border: 1px solid #2d3148;
+      border-radius: 999px;
+      font-size: 0.7rem;
+      padding: 1px 8px;
+      color: #a5b4fc;
+    }
+
+    /* ── Checkboxes in table ── */
+    th.check-col, td.check-col { width: 40px; text-align: center; padding-left: 16px; padding-right: 8px; }
+    td.check-col input[type="checkbox"],
+    th.check-col input[type="checkbox"] { accent-color: #6366f1; width: 16px; height: 16px; cursor: pointer; }
+
+    .btn-save-leads {
+      background: #6366f1;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 9px 18px;
+      font-size: 0.875rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn-save-leads:hover { background: #5254cc; }
+    .btn-save-leads:disabled { background: #2d3148; color: #64748b; cursor: not-allowed; }
+
+    .btn-remove {
+      background: none;
+      border: 1px solid #7f1d1d;
+      color: #fca5a5;
+      border-radius: 6px;
+      padding: 4px 10px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .btn-remove:hover { background: #7f1d1d; border-color: #991b1b; }
+
+    /* ── Toast ── */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #1a1d2e;
+      border: 1px solid #10b981;
+      color: #6ee7b7;
+      padding: 12px 22px;
+      border-radius: 10px;
+      font-size: 0.875rem;
+      font-weight: 600;
+      z-index: 200;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s, transform 0.2s;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(-4px); }
+    .toast.warn { border-color: #f97316; color: #fdba74; }
   </style>
 </head>
 <body>
@@ -411,50 +500,95 @@
 
   <!-- Main -->
   <main class="main">
-    <!-- Stats -->
-    <div class="stats-bar" id="stats-bar" style="display:none">
-      <div class="stat-card highlight">
-        <div class="label">No Website</div>
-        <div class="value" id="stat-leads">0</div>
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab active" id="tab-search" data-view="search">🔍 Search</button>
+      <button class="tab" id="tab-leads" data-view="leads">⭐ Saved Leads <span class="tab-count" id="leads-count">0</span></button>
+    </div>
+
+    <!-- ═══ SEARCH VIEW ═══ -->
+    <div id="view-search">
+      <!-- Stats -->
+      <div class="stats-bar" id="stats-bar" style="display:none">
+        <div class="stat-card highlight">
+          <div class="label">No Website</div>
+          <div class="value" id="stat-leads">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">Had Website</div>
+          <div class="value" id="stat-had">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">Total Scanned</div>
+          <div class="value" id="stat-total">0</div>
+        </div>
       </div>
-      <div class="stat-card">
-        <div class="label">Had Website</div>
-        <div class="value" id="stat-had">0</div>
+
+      <!-- Toolbar -->
+      <div class="toolbar" id="toolbar" style="display:none; margin-top:20px">
+        <div class="toolbar-left">
+          <input class="filter-input" id="filter-name" placeholder="Filter by name…" oninput="renderTable()">
+          <select class="cat-filter" id="filter-cat" onchange="renderTable()">
+            <option value="">All categories</option>
+          </select>
+        </div>
+        <div class="toolbar-left">
+          <button class="btn-save-leads" id="btn-save-leads" onclick="saveSelectedLeads()" disabled>
+            ⭐ Save to Leads
+          </button>
+          <button class="btn-download" id="btn-download" onclick="downloadCsv()">
+            ⬇ Download CSV
+          </button>
+        </div>
       </div>
-      <div class="stat-card">
-        <div class="label">Total Scanned</div>
-        <div class="value" id="stat-total">0</div>
+
+      <!-- Table -->
+      <div class="table-wrap" id="table-wrap" style="margin-top:20px">
+        <div class="empty-state">
+          <div class="icon">🏢</div>
+          <p>Configure a search and click <strong>Find Leads</strong></p>
+          <small>Results show businesses with no website on their Google Maps profile</small>
+        </div>
       </div>
     </div>
 
-    <!-- Toolbar -->
-    <div class="toolbar" id="toolbar" style="display:none">
-      <div class="toolbar-left">
-        <input class="filter-input" id="filter-name" placeholder="Filter by name…" oninput="renderTable()">
-        <select class="cat-filter" id="filter-cat" onchange="renderTable()">
-          <option value="">All categories</option>
-        </select>
+    <!-- ═══ LEADS VIEW ═══ -->
+    <div id="view-leads" style="display:none">
+      <div class="toolbar" style="margin-top:20px">
+        <div class="toolbar-left">
+          <input class="filter-input" id="leads-filter-name" placeholder="Filter saved leads…" oninput="renderLeads()">
+          <select class="cat-filter" id="leads-filter-cat" onchange="renderLeads()">
+            <option value="">All categories</option>
+          </select>
+        </div>
+        <button class="btn-download" id="btn-download-leads" onclick="downloadSavedCsv()">
+          ⬇ Download CSV
+        </button>
       </div>
-      <button class="btn-download" id="btn-download" onclick="downloadCsv()">
-        ⬇ Download CSV
-      </button>
-    </div>
 
-    <!-- Table -->
-    <div class="table-wrap" id="table-wrap">
-      <div class="empty-state">
-        <div class="icon">🏢</div>
-        <p>Configure a search and click <strong>Find Leads</strong></p>
-        <small>Results show businesses with no website on their Google Maps profile</small>
+      <div class="table-wrap" id="leads-table-wrap" style="margin-top:20px">
+        <div class="empty-state">
+          <div class="icon">⭐</div>
+          <p>No saved leads yet</p>
+          <small>Run a search, check the businesses you want, and click <strong>Save to Leads</strong></small>
+        </div>
       </div>
     </div>
   </main>
 </div>
 
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
 <script>
   const CATEGORIES = ['Retail', 'Restaurant', 'Service', 'Contractor', 'Auto', 'Real Estate', 'Church', 'Health & Wellness'];
   let allLeads = [];
   let lastStats = {};
+  let savedLeads = [];
+  let selectedKeys = new Set(); // dedup keys of checked search rows
+
+  // Stable dedup key (mirrors the server)
+  function keyOf(l) { return l.place_id || `${l.name}|${l.address || ''}`; }
 
   // ── Location dropdowns ──────────────────────────────────────────────────────
 
@@ -603,6 +737,7 @@
 
       allLeads = data.leads || [];
       lastStats = data.stats || {};
+      selectedKeys.clear();
 
       // Update stats
       document.getElementById('stat-leads').textContent = lastStats.no_website || 0;
@@ -652,11 +787,18 @@
 
     if (!filtered.length) {
       document.getElementById('table-wrap').innerHTML = `<div class="no-results">No leads match your filters.</div>`;
+      updateSaveButton();
       return;
     }
 
-    const rows = filtered.map(l => `
+    const allChecked = filtered.every(l => selectedKeys.has(keyOf(l)));
+
+    const rows = filtered.map(l => {
+      const k = keyOf(l);
+      const checked = selectedKeys.has(k) ? 'checked' : '';
+      return `
       <tr>
+        <td class="check-col"><input type="checkbox" class="row-check" data-key="${esc(k)}" ${checked} onchange="toggleRow(this)"></td>
         <td><span class="business-name">${esc(l.name)}</span></td>
         <td class="phone-cell">${esc(l.phone) || '<span style="color:#334155">—</span>'}</td>
         <td class="address-cell">${esc(l.address)}</td>
@@ -664,12 +806,14 @@
         <td class="type-cell">${esc(l.business_type)}</td>
         <td class="rating-cell">${l.rating ? `⭐ ${l.rating}${l.reviews ? ` <span style="color:#475569;font-size:0.75rem">(${l.reviews})</span>` : ''}` : '—'}</td>
         <td><a class="maps-link" href="${esc(l.maps_url)}" target="_blank" rel="noopener">View ↗</a></td>
-      </tr>`).join('');
+      </tr>`;
+    }).join('');
 
     document.getElementById('table-wrap').innerHTML = `
       <table>
         <thead>
           <tr>
+            <th class="check-col"><input type="checkbox" id="check-all" ${allChecked ? 'checked' : ''} onchange="toggleAll(this)" title="Select all"></th>
             <th>Business Name</th>
             <th>Phone</th>
             <th>Address</th>
@@ -681,6 +825,64 @@
         </thead>
         <tbody>${rows}</tbody>
       </table>`;
+    updateSaveButton();
+  }
+
+  // Toggle a single row's checkbox
+  function toggleRow(cb) {
+    const k = cb.dataset.key;
+    if (cb.checked) selectedKeys.add(k); else selectedKeys.delete(k);
+    // Sync the header select-all state
+    const boxes = Array.from(document.querySelectorAll('.row-check'));
+    const all = document.getElementById('check-all');
+    if (all) all.checked = boxes.length > 0 && boxes.every(b => b.checked);
+    updateSaveButton();
+  }
+
+  // Select/deselect all currently visible (filtered) rows
+  function toggleAll(cb) {
+    document.querySelectorAll('.row-check').forEach(box => {
+      box.checked = cb.checked;
+      const k = box.dataset.key;
+      if (cb.checked) selectedKeys.add(k); else selectedKeys.delete(k);
+    });
+    updateSaveButton();
+  }
+
+  function updateSaveButton() {
+    const btn = document.getElementById('btn-save-leads');
+    if (!btn) return;
+    const n = selectedKeys.size;
+    btn.disabled = n === 0;
+    btn.textContent = n ? `⭐ Save to Leads (${n})` : '⭐ Save to Leads';
+  }
+
+  // Save the checked search rows to the DB
+  async function saveSelectedLeads() {
+    const toSave = allLeads.filter(l => selectedKeys.has(keyOf(l)));
+    if (!toSave.length) return;
+    const btn = document.getElementById('btn-save-leads');
+    btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      const res = await fetch('/leads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leads: toSave })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Save failed');
+      selectedKeys.clear();
+      renderTable();
+      await loadLeads(); // refresh count + leads view
+      const msg = data.skipped
+        ? `Saved ${data.saved} — ${data.skipped} already saved`
+        : `Saved ${data.saved} lead${data.saved === 1 ? '' : 's'} ⭐`;
+      showToast(msg, data.saved === 0);
+    } catch (err) {
+      showToast(err.message, true);
+    } finally {
+      updateSaveButton();
+    }
   }
 
   function esc(s) {
@@ -708,6 +910,134 @@
     document.body.appendChild(a); a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  }
+
+  // ── Tabs ────────────────────────────────────────────────────────────────────
+
+  function switchView(view) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.view === view));
+    document.getElementById('view-search').style.display = view === 'search' ? '' : 'none';
+    document.getElementById('view-leads').style.display = view === 'leads' ? '' : 'none';
+    if (view === 'leads') renderLeads();
+  }
+
+  document.getElementById('tab-search').addEventListener('click', () => switchView('search'));
+  document.getElementById('tab-leads').addEventListener('click', () => switchView('leads'));
+
+  // ── Saved leads ─────────────────────────────────────────────────────────────
+
+  async function loadLeads() {
+    try {
+      const res = await fetch('/leads');
+      if (!res.ok) return;
+      const data = await res.json();
+      savedLeads = data.leads || [];
+      document.getElementById('leads-count').textContent = savedLeads.length;
+      // Keep the leads view fresh if it's the one showing
+      if (document.getElementById('view-leads').style.display !== 'none') renderLeads();
+    } catch (_) { /* silent */ }
+  }
+
+  function renderLeads() {
+    // Populate category filter from saved data
+    const catSel = document.getElementById('leads-filter-cat');
+    const currentCat = catSel.value;
+    const cats = [...new Set(savedLeads.map(l => l.category).filter(Boolean))].sort();
+    catSel.innerHTML = '<option value="">All categories</option>' +
+      cats.map(c => `<option value="${esc(c)}"${c === currentCat ? ' selected' : ''}>${esc(c)}</option>`).join('');
+
+    const nameFilter = document.getElementById('leads-filter-name').value.toLowerCase();
+    const catFilter = catSel.value;
+
+    const filtered = savedLeads.filter(l => {
+      if (nameFilter && !(l.name || '').toLowerCase().includes(nameFilter)) return false;
+      if (catFilter && l.category !== catFilter) return false;
+      return true;
+    });
+
+    const wrap = document.getElementById('leads-table-wrap');
+
+    if (!savedLeads.length) {
+      wrap.innerHTML = `
+        <div class="empty-state">
+          <div class="icon">⭐</div>
+          <p>No saved leads yet</p>
+          <small>Run a search, check the businesses you want, and click <strong>Save to Leads</strong></small>
+        </div>`;
+      return;
+    }
+    if (!filtered.length) {
+      wrap.innerHTML = `<div class="no-results">No saved leads match your filters.</div>`;
+      return;
+    }
+
+    const rows = filtered.map(l => `
+      <tr>
+        <td><span class="business-name">${esc(l.name)}</span></td>
+        <td class="phone-cell">${esc(l.phone) || '<span style="color:#334155">—</span>'}</td>
+        <td class="address-cell">${esc(l.address)}</td>
+        <td><span class="cat-pill">${esc(l.category)}</span></td>
+        <td class="type-cell">${esc(l.business_type)}</td>
+        <td class="rating-cell">${l.rating ? `⭐ ${l.rating}${l.reviews ? ` <span style="color:#475569;font-size:0.75rem">(${l.reviews})</span>` : ''}` : '—'}</td>
+        <td><a class="maps-link" href="${esc(l.maps_url)}" target="_blank" rel="noopener">View ↗</a></td>
+        <td><button class="btn-remove" onclick="removeLead(${l.id})">Remove</button></td>
+      </tr>`).join('');
+
+    wrap.innerHTML = `
+      <table>
+        <thead>
+          <tr>
+            <th>Business Name</th>
+            <th>Phone</th>
+            <th>Address</th>
+            <th>Category</th>
+            <th>Type</th>
+            <th>Rating</th>
+            <th>Maps</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+  }
+
+  async function removeLead(id) {
+    try {
+      const res = await fetch(`/leads/${id}`, { method: 'DELETE' });
+      if (!res.ok) { showToast('Could not remove lead', true); return; }
+      savedLeads = savedLeads.filter(l => l.id !== id);
+      document.getElementById('leads-count').textContent = savedLeads.length;
+      renderLeads();
+    } catch (_) { showToast('Could not remove lead', true); }
+  }
+
+  async function downloadSavedCsv() {
+    if (!savedLeads.length) { showToast('No saved leads to download', true); return; }
+    const filename = `saved-leads-${new Date().toISOString().slice(0,10)}.csv`;
+    const res = await fetch('/download', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ leads: savedLeads, filename })
+    });
+    if (!res.ok) { showToast('Download failed', true); return; }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  // ── Toast ───────────────────────────────────────────────────────────────────
+
+  let toastTimer;
+  function showToast(msg, warn) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'toast show' + (warn ? ' warn' : '');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { t.className = 'toast' + (warn ? ' warn' : ''); }, 3000);
   }
 
   // ── Auth / settings ─────────────────────────────────────────────────────────
@@ -776,6 +1106,7 @@
   buildCategories();
   loadCountries();
   loadMe();
+  loadLeads();
 </script>
 </body>
 </html>

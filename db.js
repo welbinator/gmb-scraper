@@ -16,6 +16,28 @@ db.exec(`
     api_key_enc   TEXT,
     created_at    TEXT NOT NULL DEFAULT (datetime('now'))
   );
+
+  CREATE TABLE IF NOT EXISTS leads (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id       INTEGER NOT NULL,
+    dedup_key     TEXT NOT NULL,
+    name          TEXT NOT NULL,
+    phone         TEXT,
+    address       TEXT,
+    city          TEXT,
+    state         TEXT,
+    category      TEXT,
+    business_type TEXT,
+    rating        TEXT,
+    reviews       TEXT,
+    maps_url      TEXT,
+    place_id      TEXT,
+    created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_leads_user_dedup
+    ON leads (user_id, dedup_key);
 `);
 
 module.exports = db;
