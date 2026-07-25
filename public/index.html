@@ -33,6 +33,58 @@
       letter-spacing: 0.05em;
       text-transform: uppercase;
     }
+    .header-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+    .user-email { font-size: 0.82rem; color: #94a3b8; }
+    .header-btn {
+      background: #1e2235; border: 1px solid #2d3148; color: #e2e8f0;
+      border-radius: 8px; padding: 7px 14px; font-size: 0.82rem; font-weight: 600;
+      cursor: pointer; transition: border-color 0.15s, background 0.15s;
+    }
+    .header-btn:hover { border-color: #6366f1; background: #252843; }
+
+    /* ── Settings modal ── */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+      display: flex; align-items: center; justify-content: center; z-index: 100; padding: 20px;
+    }
+    .modal {
+      background: #1a1d2e; border: 1px solid #2d3148; border-radius: 14px;
+      padding: 28px; width: 100%; max-width: 460px;
+    }
+    .modal h2 { font-size: 1.15rem; color: #fff; margin-bottom: 10px; }
+    .modal-desc { font-size: 0.85rem; color: #94a3b8; line-height: 1.5; margin-bottom: 18px; }
+    .modal-desc a { color: #818cf8; text-decoration: none; }
+    .modal-desc a:hover { text-decoration: underline; }
+    .key-status {
+      font-size: 0.8rem; font-weight: 600; padding: 8px 12px; border-radius: 8px; margin-bottom: 16px;
+    }
+    .key-status.set { background: #052e2b; border: 1px solid #10b981; color: #6ee7b7; }
+    .key-status.unset { background: #422006; border: 1px solid #f97316; color: #fdba74; }
+    .modal label {
+      display: block; font-size: 0.75rem; font-weight: 600; color: #94a3b8;
+      text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px;
+    }
+    .modal input {
+      width: 100%; background: #1e2235; border: 1px solid #2d3148; border-radius: 8px;
+      color: #e2e8f0; padding: 11px 12px; font-size: 0.9rem; outline: none;
+    }
+    .modal input:focus { border-color: #6366f1; }
+    .modal-error {
+      background: #7f1d1d; border: 1px solid #991b1b; border-radius: 8px;
+      padding: 9px 13px; font-size: 0.82rem; color: #fca5a5; margin-top: 14px; display: none;
+    }
+    .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
+    .btn-primary {
+      background: #6366f1; color: #fff; border: none; border-radius: 8px;
+      padding: 10px 20px; font-size: 0.88rem; font-weight: 600; cursor: pointer;
+    }
+    .btn-primary:hover { background: #5254cc; }
+    .btn-primary:disabled { background: #2d3148; color: #64748b; cursor: not-allowed; }
+    .btn-secondary {
+      background: #1e2235; border: 1px solid #2d3148; color: #e2e8f0; border-radius: 8px;
+      padding: 10px 20px; font-size: 0.88rem; font-weight: 600; cursor: pointer;
+    }
+    .btn-secondary:hover { border-color: #6366f1; }
 
     .layout { display: grid; grid-template-columns: 320px 1fr; min-height: calc(100vh - 65px); }
 
@@ -307,7 +359,28 @@
 <header>
   <h1>🚫 No-Website Business Finder</h1>
   <span class="badge">Lead Gen</span>
+  <div class="header-right">
+    <span class="user-email" id="user-email"></span>
+    <button class="header-btn" id="btn-settings" title="API key & settings">⚙ Settings</button>
+    <button class="header-btn" id="btn-logout" title="Log out">Log out</button>
+  </div>
 </header>
+
+<!-- Settings modal -->
+<div class="modal-overlay" id="settings-modal" style="display:none">
+  <div class="modal">
+    <h2>Your Outscraper API Key</h2>
+    <p class="modal-desc">Every search you run bills <strong>your</strong> Outscraper account. Paste your key below — it's stored encrypted and never shown again. Get one at <a href="https://app.outscraper.com/profile" target="_blank" rel="noopener">app.outscraper.com/profile</a>.</p>
+    <div class="key-status" id="key-status"></div>
+    <label for="api-key-input">API Key</label>
+    <input type="password" id="api-key-input" placeholder="Paste your Outscraper API key" autocomplete="off">
+    <div class="modal-error" id="modal-error"></div>
+    <div class="modal-actions">
+      <button class="btn-secondary" id="btn-close-settings">Close</button>
+      <button class="btn-primary" id="btn-save-key">Save Key</button>
+    </div>
+  </div>
+</div>
 
 <div class="layout">
   <!-- Sidebar -->
@@ -637,9 +710,72 @@
     URL.revokeObjectURL(url);
   }
 
+  // ── Auth / settings ─────────────────────────────────────────────────────────
+
+  const settingsModal = document.getElementById('settings-modal');
+  const keyStatus = document.getElementById('key-status');
+  const modalError = document.getElementById('modal-error');
+
+  async function loadMe() {
+    const res = await fetch('/auth/me');
+    if (res.status === 401) { window.location.href = '/login'; return; }
+    const data = await res.json();
+    document.getElementById('user-email').textContent = data.email;
+    updateKeyStatus(data.hasKey);
+    // First-run nudge: no key yet → open settings so they can add one
+    if (!data.hasKey) openSettings();
+  }
+
+  function updateKeyStatus(hasKey) {
+    if (hasKey) {
+      keyStatus.className = 'key-status set';
+      keyStatus.textContent = '✓ An API key is on file. Paste a new one below to replace it.';
+    } else {
+      keyStatus.className = 'key-status unset';
+      keyStatus.textContent = '⚠ No API key yet — add yours to start searching.';
+    }
+  }
+
+  function openSettings() { modalError.style.display = 'none'; document.getElementById('api-key-input').value = ''; settingsModal.style.display = 'flex'; }
+  function closeSettings() { settingsModal.style.display = 'none'; }
+
+  document.getElementById('btn-settings').addEventListener('click', openSettings);
+  document.getElementById('btn-close-settings').addEventListener('click', closeSettings);
+  settingsModal.addEventListener('click', (e) => { if (e.target === settingsModal) closeSettings(); });
+
+  document.getElementById('btn-save-key').addEventListener('click', async () => {
+    const input = document.getElementById('api-key-input');
+    const key = input.value.trim();
+    const btn = document.getElementById('btn-save-key');
+    modalError.style.display = 'none';
+    if (!key) { modalError.textContent = 'Please paste your API key.'; modalError.style.display = 'block'; return; }
+    btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      const res = await fetch('/auth/api-key', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey: key })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to save key');
+      updateKeyStatus(true);
+      input.value = '';
+      closeSettings();
+    } catch (err) {
+      modalError.textContent = err.message; modalError.style.display = 'block';
+    } finally {
+      btn.disabled = false; btn.textContent = 'Save Key';
+    }
+  });
+
+  document.getElementById('btn-logout').addEventListener('click', async () => {
+    await fetch('/auth/logout', { method: 'POST' });
+    window.location.href = '/login';
+  });
+
   // ── Init ────────────────────────────────────────────────────────────────────
   buildCategories();
   loadCountries();
+  loadMe();
 </script>
 </body>
 </html>

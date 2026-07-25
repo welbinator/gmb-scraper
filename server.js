@@ -4,6 +4,10 @@ const express = require('express');
 const axios = require('axios');
 const path = require('path');
 const ccsj = require('countrycitystatejson');
+const session = require('express-session');
+const SqliteStore = require('better-sqlite3-session-store')(session);
+const db = require('./db');
+const { hashPassword, verifyPassword, encrypt, decrypt, requireAuth } = require('./auth');
 
 const STATE_ABBR_TO_FULL = {
   AL:'Alabama',AK:'Alaska',AZ:'Arizona',AR:'Arkansas',CA:'California',CO:'Colorado',
@@ -29,14 +33,107 @@ function normalizeState(s) {
 
 const app = express();
 const PORT = process.env.PORT || 3056;
-const OUTSCRAPER_API_KEY = process.env.OUTSCRAPER_API_KEY;
 
-if (!OUTSCRAPER_API_KEY) {
-  console.error('FATAL: OUTSCRAPER_API_KEY is not set. Copy .env.example to .env and add your key.');
+// Fail-fast on the secrets the auth layer needs
+if (!process.env.APP_SECRET || process.env.APP_SECRET.length !== 64) {
+  console.error('FATAL: APP_SECRET must be a 64-char hex string (32 bytes). See .env.example.');
+  process.exit(1);
+}
+if (!process.env.SESSION_SECRET) {
+  console.error('FATAL: SESSION_SECRET is not set. See .env.example.');
   process.exit(1);
 }
 
+app.set('trust proxy', 1); // behind Nginx
 app.use(express.json());
+
+app.use(session({
+  store: new SqliteStore({
+    client: db,
+    expired: { clear: true, intervalMs: 900000 } // clear expired every 15 min
+  }),
+  secret: process.env.SESSION_SECRET,
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: 1000 * 60 * 60 * 24 * 30 // 30 days
+  }
+}));
+
+// ── Auth pages (public) ───────────────────────────────────────────────────────
+// These specific files are reachable without a session; everything else in
+// /public is gated below.
+const PUBLIC_FILES = new Set(['/login', '/signup']);
+app.get('/login', (req, res) => {
+  if (req.session.userId) return res.redirect('/');
+  res.sendFile(path.join(__dirname, 'public', 'login.html'));
+});
+app.get('/signup', (req, res) => {
+  if (req.session.userId) return res.redirect('/');
+  res.sendFile(path.join(__dirname, 'public', 'signup.html'));
+});
+
+// ── Auth API ──────────────────────────────────────────────────────────────────
+app.post('/auth/signup', (req, res) => {
+  const email = (req.body.email || '').trim().toLowerCase();
+  const password = req.body.password || '';
+  if (!email || !email.includes('@')) return res.status(400).json({ error: 'Valid email required' });
+  if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
+
+  const exists = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
+  if (exists) return res.status(409).json({ error: 'An account with that email already exists' });
+
+  const info = db.prepare('INSERT INTO users (email, password_hash) VALUES (?, ?)')
+    .run(email, hashPassword(password));
+  req.session.userId = info.lastInsertRowid;
+  res.json({ ok: true });
+});
+
+app.post('/auth/login', (req, res) => {
+  const email = (req.body.email || '').trim().toLowerCase();
+  const password = req.body.password || '';
+  const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
+  if (!user || !verifyPassword(password, user.password_hash)) {
+    return res.status(401).json({ error: 'Invalid email or password' });
+  }
+  req.session.userId = user.id;
+  res.json({ ok: true });
+});
+
+app.post('/auth/logout', (req, res) => {
+  req.session.destroy(() => res.json({ ok: true }));
+});
+
+// Who am I + do I have a key set? (drives the UI)
+app.get('/auth/me', requireAuth, (req, res) => {
+  const user = db.prepare('SELECT id, email, api_key_enc FROM users WHERE id = ?').get(req.session.userId);
+  if (!user) { req.session.destroy(() => {}); return res.status(401).json({ error: 'Not authenticated' }); }
+  res.json({ email: user.email, hasKey: !!user.api_key_enc });
+});
+
+// Save / update the caller's own Outscraper key
+app.post('/auth/api-key', requireAuth, (req, res) => {
+  const key = (req.body.apiKey || '').trim();
+  if (!key) return res.status(400).json({ error: 'API key required' });
+  db.prepare('UPDATE users SET api_key_enc = ? WHERE id = ?').run(encrypt(key), req.session.userId);
+  res.json({ ok: true });
+});
+
+// Helper: fetch + decrypt the current user's key, or null
+function currentUserKey(req) {
+  const row = db.prepare('SELECT api_key_enc FROM users WHERE id = ?').get(req.session.userId);
+  return row && row.api_key_enc ? decrypt(row.api_key_enc) : null;
+}
+
+// ── Gate everything else behind auth ──────────────────────────────────────────
+app.use((req, res, next) => {
+  if (PUBLIC_FILES.has(req.path)) return next();
+  return requireAuth(req, res, next);
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ── Location endpoints ────────────────────────────────────────────────────────
@@ -120,13 +217,13 @@ const CATEGORY_QUERIES = {
 
 // ── Outscraper helpers ────────────────────────────────────────────────────────
 
-async function pollJob(jobId, maxWaitMs = 120000) {
+async function pollJob(jobId, apiKey, maxWaitMs = 120000) {
   const start = Date.now();
   while (Date.now() - start < maxWaitMs) {
     await new Promise(r => setTimeout(r, 3000));
     const resp = await axios.get(
       `https://api.app.outscraper.com/requests/${jobId}`,
-      { headers: { 'X-API-KEY': OUTSCRAPER_API_KEY } }
+      { headers: { 'X-API-KEY': apiKey } }
     );
     const job = resp.data;
     if (job.status === 'Success') return job.data;
@@ -137,11 +234,11 @@ async function pollJob(jobId, maxWaitMs = 120000) {
   throw new Error('Outscraper job timed out');
 }
 
-async function runOutscraperQuery(searchQuery, limit) {
+async function runOutscraperQuery(searchQuery, limit, apiKey) {
   const resp = await axios.get(
     'https://api.app.outscraper.com/maps/search-v3',
     {
-      headers: { 'X-API-KEY': OUTSCRAPER_API_KEY },
+      headers: { 'X-API-KEY': apiKey },
       params: {
         query: searchQuery,
         limit: Math.min(limit, 100),
@@ -157,7 +254,7 @@ async function runOutscraperQuery(searchQuery, limit) {
   if (data && data.data) {
     return Array.isArray(data.data[0]) ? data.data[0] : data.data;
   } else if (data && data.id) {
-    const polled = await pollJob(data.id);
+    const polled = await pollJob(data.id, apiKey);
     return Array.isArray(polled[0]) ? polled[0] : polled;
   }
   return [];
@@ -172,10 +269,15 @@ function buildMapsUrl(r) {
 
 // ── Search endpoint ────────────────────────────────────────────────────────────
 
-app.post('/search', async (req, res) => {
+app.post('/search', requireAuth, async (req, res) => {
   const { city, state, country, categories } = req.body;
   if (!city || !categories || !categories.length) {
     return res.status(400).json({ error: 'city and categories are required' });
+  }
+
+  const apiKey = currentUserKey(req);
+  if (!apiKey) {
+    return res.status(400).json({ error: 'No Outscraper API key on file. Add yours in Settings before searching.' });
   }
 
   const effectiveCountry = country || 'US';
@@ -203,7 +305,7 @@ app.post('/search', async (req, res) => {
       console.log(`  Querying: "${searchQuery}"`);
 
       try {
-        const raw = await runOutscraperQuery(searchQuery, perQuery);
+        const raw = await runOutscraperQuery(searchQuery, perQuery, apiKey);
         stats.total_fetched += raw.length;
 
         for (const r of raw) {
@@ -257,7 +359,7 @@ app.post('/search', async (req, res) => {
 
 // ── CSV download ───────────────────────────────────────────────────────────────
 
-app.post('/download', (req, res) => {
+app.post('/download', requireAuth, (req, res) => {
   const { leads, filename } = req.body;
   if (!leads || !leads.length) {
     return res.status(400).json({ error: 'No leads to download' });
