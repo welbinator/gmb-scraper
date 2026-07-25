@@ -128,6 +128,15 @@ function currentUserKey(req) {
   return row && row.api_key_enc ? decrypt(row.api_key_enc) : null;
 }
 
+// ── Landing / root ────────────────────────────────────────────────────────────
+// Logged-out visitors get the marketing landing page; logged-in users get the app.
+app.get('/', (req, res) => {
+  if (req.session.userId) {
+    return res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  }
+  res.sendFile(path.join(__dirname, 'public', 'landing.html'));
+});
+
 // ── Gate everything else behind auth ──────────────────────────────────────────
 app.use((req, res, next) => {
   if (PUBLIC_FILES.has(req.path)) return next();
