@@ -1,3 +1,5 @@
+require('dotenv').config();
+
 const express = require('express');
 const axios = require('axios');
 const path = require('path');
@@ -26,8 +28,13 @@ function normalizeState(s) {
 }
 
 const app = express();
-const PORT = 3056;
-const OUTSCRAPER_API_KEY = 'MGQ3NDQ2NDEwMWYyNDY4M2FhNjI0OTNmYzY1N2MwYWJ8NzgwMmRhODQ4Yw';
+const PORT = process.env.PORT || 3056;
+const OUTSCRAPER_API_KEY = process.env.OUTSCRAPER_API_KEY;
+
+if (!OUTSCRAPER_API_KEY) {
+  console.error('FATAL: OUTSCRAPER_API_KEY is not set. Copy .env.example to .env and add your key.');
+  process.exit(1);
+}
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
