@@ -131,6 +131,9 @@ function currentUserKey(req) {
 // ── Landing / root ────────────────────────────────────────────────────────────
 // Logged-out visitors get the marketing landing page; logged-in users get the app.
 app.get('/', (req, res) => {
+  // Content depends on auth state (landing vs. app), so never cache this URL —
+  // otherwise a logged-in request can 304 back to a cached landing page.
+  res.set('Cache-Control', 'no-store');
   if (req.session.userId) {
     return res.sendFile(path.join(__dirname, 'public', 'index.html'));
   }
