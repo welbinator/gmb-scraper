@@ -8,10 +8,11 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root { --indigo: #6366f1; --orange: #f97316; }
-    html { scroll-behavior: smooth; }
+    html { scroll-behavior: smooth; overflow-x: clip; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       background: #0f1117; color: #e2e8f0; min-height: 100vh; line-height: 1.6;
+      overflow-x: clip;
     }
     a { color: inherit; text-decoration: none; }
 
@@ -20,18 +21,26 @@
       position: sticky; top: 0; z-index: 50;
       background: rgba(15,17,23,0.85); backdrop-filter: blur(10px);
       border-bottom: 1px solid #2d3148;
-      display: flex; align-items: center; gap: 12px;
-      padding: 16px 32px;
+      display: flex; align-items: center; gap: 10px;
+      padding: 14px 24px;
+      max-width: 100%;
+      box-sizing: border-box;
     }
-    nav .logo { font-size: 1.1rem; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 8px; }
+    nav .logo {
+      font-size: 1.05rem; font-weight: 700; color: #fff;
+      display: flex; align-items: center; gap: 8px; min-width: 0;
+    }
+    nav .logo-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     nav .badge {
       background: var(--orange); color: #fff; font-size: 0.6rem; font-weight: 700;
       padding: 2px 7px; border-radius: 999px; letter-spacing: 0.05em; text-transform: uppercase;
+      flex-shrink: 0;
     }
-    nav .nav-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+    nav .nav-right { margin-left: auto; display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
     .btn {
-      border-radius: 8px; padding: 9px 18px; font-size: 0.88rem; font-weight: 600;
+      border-radius: 8px; padding: 9px 16px; font-size: 0.88rem; font-weight: 600;
       cursor: pointer; transition: background 0.15s, border-color 0.15s, transform 0.1s; display: inline-block;
+      white-space: nowrap;
     }
     .btn:active { transform: scale(0.97); }
     .btn-ghost { background: #1e2235; border: 1px solid #2d3148; color: #e2e8f0; }
@@ -48,13 +57,13 @@
       font-size: 0.78rem; font-weight: 600; padding: 6px 14px; border-radius: 999px; margin-bottom: 24px;
     }
     .hero h1 {
-      font-size: clamp(2rem, 5vw, 3.2rem); font-weight: 800; color: #fff; line-height: 1.12; letter-spacing: -0.02em;
+      font-size: clamp(1.85rem, 6vw, 3.2rem); font-weight: 800; color: #fff; line-height: 1.12; letter-spacing: -0.02em;
     }
     .hero h1 .accent { color: var(--orange); }
     .hero p {
       font-size: clamp(1rem, 2.4vw, 1.2rem); color: #94a3b8; max-width: 620px; margin: 22px auto 0;
     }
-    .hero-cta { margin-top: 36px; display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+    .hero-cta { margin-top: 36px; display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
     .hero-cta .btn { padding: 13px 28px; font-size: 0.98rem; }
     .hero-note { margin-top: 16px; font-size: 0.82rem; color: #64748b; }
 
@@ -68,6 +77,7 @@
     .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
     .step {
       background: #1a1d2e; border: 1px solid #2d3148; border-radius: 14px; padding: 28px 24px;
+      min-width: 0;
     }
     .step .num {
       width: 38px; height: 38px; border-radius: 10px; background: #1e2040; border: 1px solid #312e81;
@@ -81,9 +91,9 @@
     .features { display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; }
     .feature {
       background: #13161f; border: 1px solid #2d3148; border-radius: 12px; padding: 22px 24px;
-      display: flex; gap: 16px; align-items: flex-start;
+      display: flex; gap: 16px; align-items: flex-start; min-width: 0;
     }
-    .feature .icon { font-size: 1.6rem; line-height: 1; }
+    .feature .icon { font-size: 1.6rem; line-height: 1; flex-shrink: 0; }
     .feature h3 { color: #fff; font-size: 1.02rem; margin-bottom: 4px; }
     .feature p { color: #94a3b8; font-size: 0.9rem; }
 
@@ -110,14 +120,28 @@
     @media (max-width: 760px) {
       .steps { grid-template-columns: 1fr; }
       .features { grid-template-columns: 1fr; }
-      nav { padding: 14px 18px; }
+      nav { padding: 12px 14px; }
+      nav .logo { font-size: 0.95rem; }
+      nav .badge { display: none; }
+      .btn { padding: 8px 12px; font-size: 0.82rem; }
+      .hero { padding: 56px 18px 48px; }
+      .hero-cta .btn { width: 100%; max-width: 320px; }
+      .section { padding: 32px 18px; }
+      .section-head { margin-bottom: 28px; }
+      .cta-band { padding: 0 18px; }
+      .cta-inner { padding: 36px 20px; }
+      footer { margin-top: 48px; padding: 22px 16px; }
+    }
+
+    @media (max-width: 380px) {
+      nav .logo-text { max-width: 140px; }
     }
   </style>
 </head>
 <body>
 
 <nav>
-  <span class="logo">🚫 No-Website Finder <span class="badge">Lead Gen</span></span>
+  <span class="logo"><span class="logo-text">🚫 No-Website Finder</span> <span class="badge">Lead Gen</span></span>
   <div class="nav-right">
     <a href="/login" class="btn btn-ghost">Log In</a>
     <a href="/signup" class="btn btn-primary">Sign Up</a>

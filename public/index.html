@@ -7,38 +7,68 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+    html { overflow-x: clip; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       background: #0f1117;
       color: #e2e8f0;
       min-height: 100vh;
+      min-height: 100dvh;
+      overflow-x: clip;
     }
 
     header {
       background: #1a1d2e;
       border-bottom: 1px solid #2d3148;
-      padding: 20px 32px;
+      padding: 14px 20px;
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 10px;
+      flex-wrap: wrap;
+      max-width: 100%;
     }
-    header h1 { font-size: 1.4rem; font-weight: 700; color: #fff; }
+    header h1 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #fff;
+      line-height: 1.2;
+      min-width: 0;
+    }
+    header .title-full { display: inline; }
+    header .title-short { display: none; }
     header .badge {
       background: #f97316;
       color: #fff;
-      font-size: 0.7rem;
+      font-size: 0.65rem;
       font-weight: 700;
       padding: 3px 8px;
       border-radius: 999px;
       letter-spacing: 0.05em;
       text-transform: uppercase;
+      flex-shrink: 0;
     }
-    .header-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
-    .user-email { font-size: 0.82rem; color: #94a3b8; }
+    .header-right {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      min-width: 0;
+    }
+    .user-email {
+      font-size: 0.82rem;
+      color: #94a3b8;
+      max-width: 180px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
     .header-btn {
       background: #1e2235; border: 1px solid #2d3148; color: #e2e8f0;
-      border-radius: 8px; padding: 7px 14px; font-size: 0.82rem; font-weight: 600;
+      border-radius: 8px; padding: 7px 12px; font-size: 0.82rem; font-weight: 600;
       cursor: pointer; transition: border-color 0.15s, background 0.15s;
+      white-space: nowrap;
+      flex-shrink: 0;
     }
     .header-btn:hover { border-color: #6366f1; background: #252843; }
 
@@ -66,7 +96,7 @@
     }
     .modal input {
       width: 100%; background: #1e2235; border: 1px solid #2d3148; border-radius: 8px;
-      color: #e2e8f0; padding: 11px 12px; font-size: 0.9rem; outline: none;
+      color: #e2e8f0; padding: 11px 12px; font-size: 16px; outline: none;
     }
     .modal input:focus { border-color: #6366f1; }
     .modal-error {
@@ -86,7 +116,13 @@
     }
     .btn-secondary:hover { border-color: #6366f1; }
 
-    .layout { display: grid; grid-template-columns: 320px 1fr; min-height: calc(100vh - 65px); }
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+      min-height: calc(100vh - 65px);
+      min-height: calc(100dvh - 65px);
+      max-width: 100%;
+    }
 
     /* ── Sidebar ── */
     .sidebar {
@@ -96,6 +132,7 @@
       display: flex;
       flex-direction: column;
       gap: 20px;
+      min-width: 0;
     }
 
     .field-group label {
@@ -116,9 +153,10 @@
       border-radius: 8px;
       color: #e2e8f0;
       padding: 9px 12px;
-      font-size: 0.875rem;
+      font-size: 16px; /* 16px prevents iOS focus-zoom */
       outline: none;
       transition: border-color 0.15s;
+      max-width: 100%;
     }
     .field-group select:focus,
     .field-group input:focus { border-color: #6366f1; }
@@ -192,22 +230,31 @@
     .btn-search:disabled { background: #2d3148; color: #64748b; cursor: not-allowed; transform: none; }
 
     /* ── Main content ── */
-    .main { padding: 24px 28px; display: flex; flex-direction: column; gap: 20px; }
+    .main {
+      padding: 24px 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      min-width: 0;
+      max-width: 100%;
+      overflow-x: clip;
+    }
 
     .stats-bar {
       display: flex;
-      gap: 16px;
+      gap: 12px;
       flex-wrap: wrap;
     }
     .stat-card {
       background: #1a1d2e;
       border: 1px solid #2d3148;
       border-radius: 10px;
-      padding: 14px 20px;
-      min-width: 140px;
+      padding: 14px 18px;
+      flex: 1 1 120px;
+      min-width: 0;
     }
     .stat-card .label { font-size: 0.7rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.06em; }
-    .stat-card .value { font-size: 1.6rem; font-weight: 700; margin-top: 4px; }
+    .stat-card .value { font-size: 1.5rem; font-weight: 700; margin-top: 4px; }
     .stat-card.highlight .value { color: #f97316; }
 
     .toolbar {
@@ -217,7 +264,14 @@
       flex-wrap: wrap;
       gap: 10px;
     }
-    .toolbar-left { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    .toolbar-left {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+      min-width: 0;
+      flex: 1 1 auto;
+    }
 
     .filter-input {
       background: #1e2235;
@@ -225,9 +279,12 @@
       border-radius: 8px;
       color: #e2e8f0;
       padding: 8px 14px;
-      font-size: 0.875rem;
+      font-size: 16px;
       outline: none;
       width: 220px;
+      max-width: 100%;
+      min-width: 0;
+      flex: 1 1 160px;
       transition: border-color 0.15s;
     }
     .filter-input:focus { border-color: #6366f1; }
@@ -238,8 +295,10 @@
       border-radius: 8px;
       color: #e2e8f0;
       padding: 8px 12px;
-      font-size: 0.875rem;
+      font-size: 16px;
       outline: none;
+      max-width: 100%;
+      min-width: 0;
     }
 
     .btn-download {
@@ -252,9 +311,11 @@
       font-weight: 600;
       cursor: pointer;
       transition: background 0.15s;
-      display: flex;
+      display: inline-flex;
       align-items: center;
+      justify-content: center;
       gap: 6px;
+      white-space: nowrap;
     }
     .btn-download:hover { background: #059669; }
     .btn-download:disabled { background: #2d3148; color: #64748b; cursor: not-allowed; }
@@ -264,10 +325,12 @@
       background: #1a1d2e;
       border: 1px solid #2d3148;
       border-radius: 12px;
-      overflow: hidden;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      max-width: 100%;
     }
 
-    table { width: 100%; border-collapse: collapse; }
+    table { width: 100%; border-collapse: collapse; min-width: 760px; }
     thead { background: #13161f; }
     th {
       padding: 12px 16px;
@@ -289,9 +352,9 @@
     tr:last-child td { border-bottom: none; }
     tr:hover td { background: #1e2235; }
 
-    .business-name { font-weight: 600; color: #fff; }
-    .phone-cell { color: #94a3b8; font-family: monospace; font-size: 0.82rem; }
-    .address-cell { color: #94a3b8; font-size: 0.82rem; max-width: 200px; }
+    .business-name { font-weight: 600; color: #fff; word-break: break-word; }
+    .phone-cell { color: #94a3b8; font-family: monospace; font-size: 0.82rem; white-space: nowrap; }
+    .address-cell { color: #94a3b8; font-size: 0.82rem; max-width: 200px; word-break: break-word; }
     .cat-pill {
       display: inline-block;
       padding: 3px 10px;
@@ -301,9 +364,10 @@
       background: #1e2235;
       color: #a5b4fc;
       border: 1px solid #312e81;
+      white-space: nowrap;
     }
-    .type-cell { color: #64748b; font-size: 0.78rem; max-width: 160px; }
-    .rating-cell { color: #fbbf24; font-size: 0.82rem; }
+    .type-cell { color: #64748b; font-size: 0.78rem; max-width: 160px; word-break: break-word; }
+    .rating-cell { color: #fbbf24; font-size: 0.82rem; white-space: nowrap; }
     .maps-link {
       color: #6366f1;
       text-decoration: none;
@@ -311,6 +375,39 @@
       white-space: nowrap;
     }
     .maps-link:hover { color: #818cf8; text-decoration: underline; }
+
+    /* Mobile card list (shown only on small screens) */
+    .cards { display: none; flex-direction: column; gap: 10px; padding: 12px; }
+    .lead-card {
+      background: #13161f;
+      border: 1px solid #2d3148;
+      border-radius: 10px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .lead-card-top {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+    }
+    .lead-card-top .business-name { flex: 1; min-width: 0; font-size: 0.95rem; }
+    .lead-card-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 12px;
+      align-items: center;
+      font-size: 0.82rem;
+    }
+    .lead-card-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin-top: 2px;
+    }
+    .lead-card .row-check { accent-color: #6366f1; width: 18px; height: 18px; margin-top: 2px; flex-shrink: 0; }
 
     /* ── States ── */
     .empty-state {
@@ -400,9 +497,11 @@
       font-weight: 600;
       cursor: pointer;
       transition: background 0.15s;
-      display: flex;
+      display: inline-flex;
       align-items: center;
+      justify-content: center;
       gap: 6px;
+      white-space: nowrap;
     }
     .btn-save-leads:hover { background: #5254cc; }
     .btn-save-leads:disabled { background: #2d3148; color: #64748b; cursor: not-allowed; }
@@ -438,15 +537,65 @@
       opacity: 0;
       pointer-events: none;
       transition: opacity 0.2s, transform 0.2s;
+      max-width: calc(100vw - 32px);
+      text-align: center;
     }
     .toast.show { opacity: 1; transform: translateX(-50%) translateY(-4px); }
     .toast.warn { border-color: #f97316; color: #fdba74; }
+
+    /* ── Mobile / tablet ── */
+    @media (max-width: 900px) {
+      .layout {
+        grid-template-columns: 1fr;
+        min-height: 0;
+      }
+      .sidebar {
+        border-right: none;
+        border-bottom: 1px solid #2d3148;
+        padding: 16px;
+      }
+      .main { padding: 16px; }
+      header { padding: 12px 14px; }
+      header h1 { font-size: 1rem; }
+      header .title-full { display: none; }
+      header .title-short { display: inline; }
+      .user-email { display: none; }
+      .header-right { gap: 6px; }
+      .stat-card { flex: 1 1 calc(50% - 12px); padding: 12px 14px; }
+      .stat-card .value { font-size: 1.3rem; }
+      .tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+      .tab { padding: 10px 12px; font-size: 0.85rem; white-space: nowrap; }
+      .toolbar-left { width: 100%; }
+      .filter-input { width: 100%; flex: 1 1 100%; }
+      .cat-filter { flex: 1 1 auto; width: auto; min-width: 140px; }
+      .btn-save-leads, .btn-download { flex: 1 1 auto; }
+      .progress-wrap { padding: 36px 14px; }
+      .empty-state { padding: 40px 16px; }
+      .modal { padding: 22px 18px; }
+      .modal-actions { flex-wrap: wrap; }
+      .modal-actions .btn-primary,
+      .modal-actions .btn-secondary { flex: 1 1 auto; }
+    }
+
+    /* Phone: cards instead of wide tables */
+    @media (max-width: 700px) {
+      .table-desktop { display: none; }
+      .cards { display: flex; }
+      .table-wrap { overflow: visible; }
+      table { min-width: 0; }
+      .stat-card { flex: 1 1 100%; }
+    }
+
+    @media (max-width: 420px) {
+      .header-btn { padding: 7px 10px; font-size: 0.78rem; }
+      header .badge { display: none; }
+    }
   </style>
 </head>
 <body>
 
 <header>
-  <h1>🚫 No-Website Business Finder</h1>
+  <h1><span class="title-full">🚫 No-Website Business Finder</span><span class="title-short">🚫 No-Website Finder</span></h1>
   <span class="badge">Lead Gen</span>
   <div class="header-right">
     <span class="user-email" id="user-email"></span>
@@ -865,6 +1014,12 @@
 
   // ── Render table ────────────────────────────────────────────────────────────
 
+  function ratingHtml(l) {
+    return l.rating
+      ? `⭐ ${esc(l.rating)}${l.reviews ? ` <span style="color:#475569;font-size:0.75rem">(${esc(l.reviews)})</span>` : ''}`
+      : '—';
+  }
+
   function renderTable() {
     const nameFilter = document.getElementById('filter-name').value.toLowerCase();
     const catFilter = document.getElementById('filter-cat').value;
@@ -894,27 +1049,61 @@
         <td class="address-cell">${esc(l.address)}</td>
         <td><span class="cat-pill">${esc(l.category)}</span></td>
         <td class="type-cell">${esc(l.business_type)}</td>
-        <td class="rating-cell">${l.rating ? `⭐ ${l.rating}${l.reviews ? ` <span style="color:#475569;font-size:0.75rem">(${l.reviews})</span>` : ''}` : '—'}</td>
+        <td class="rating-cell">${ratingHtml(l)}</td>
         <td><a class="maps-link" href="${esc(l.maps_url)}" target="_blank" rel="noopener">View ↗</a></td>
       </tr>`;
     }).join('');
 
+    const cards = filtered.map(l => {
+      const k = keyOf(l);
+      const checked = selectedKeys.has(k) ? 'checked' : '';
+      const phone = l.phone
+        ? `<a class="phone-cell" href="tel:${esc(String(l.phone).replace(/[^\d+]/g, ''))}">${esc(l.phone)}</a>`
+        : '<span class="phone-cell" style="color:#334155">No phone</span>';
+      return `
+      <div class="lead-card">
+        <div class="lead-card-top">
+          <input type="checkbox" class="row-check" data-key="${esc(k)}" ${checked} onchange="toggleRow(this)">
+          <span class="business-name">${esc(l.name)}</span>
+        </div>
+        <div class="lead-card-meta">
+          <span class="cat-pill">${esc(l.category)}</span>
+          <span class="rating-cell">${ratingHtml(l)}</span>
+          ${phone}
+        </div>
+        ${l.address ? `<div class="address-cell">${esc(l.address)}</div>` : ''}
+        ${l.business_type ? `<div class="type-cell">${esc(l.business_type)}</div>` : ''}
+        <div class="lead-card-actions">
+          <a class="maps-link" href="${esc(l.maps_url)}" target="_blank" rel="noopener">Open in Maps ↗</a>
+        </div>
+      </div>`;
+    }).join('');
+
     document.getElementById('table-wrap').innerHTML = `
-      <table>
-        <thead>
-          <tr>
-            <th class="check-col"><input type="checkbox" id="check-all" ${allChecked ? 'checked' : ''} onchange="toggleAll(this)" title="Select all"></th>
-            <th>Business Name</th>
-            <th>Phone</th>
-            <th>Address</th>
-            <th>Category</th>
-            <th>Type</th>
-            <th>Rating</th>
-            <th>Maps</th>
-          </tr>
-        </thead>
-        <tbody>${rows}</tbody>
-      </table>`;
+      <div class="table-desktop">
+        <table>
+          <thead>
+            <tr>
+              <th class="check-col"><input type="checkbox" id="check-all" ${allChecked ? 'checked' : ''} onchange="toggleAll(this)" title="Select all"></th>
+              <th>Business Name</th>
+              <th>Phone</th>
+              <th>Address</th>
+              <th>Category</th>
+              <th>Type</th>
+              <th>Rating</th>
+              <th>Maps</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      <div class="cards">
+        <label style="display:flex;align-items:center;gap:8px;padding:4px 2px 8px;font-size:0.82rem;color:#94a3b8;cursor:pointer">
+          <input type="checkbox" id="check-all-mobile" ${allChecked ? 'checked' : ''} onchange="toggleAll(this)" style="accent-color:#6366f1;width:16px;height:16px">
+          Select all visible
+        </label>
+        ${cards}
+      </div>`;
     updateSaveButton();
   }
 
@@ -922,10 +1111,11 @@
   function toggleRow(cb) {
     const k = cb.dataset.key;
     if (cb.checked) selectedKeys.add(k); else selectedKeys.delete(k);
-    // Sync the header select-all state
-    const boxes = Array.from(document.querySelectorAll('.row-check'));
-    const all = document.getElementById('check-all');
-    if (all) all.checked = boxes.length > 0 && boxes.every(b => b.checked);
+    // Keep table + card checkboxes for the same lead in sync
+    document.querySelectorAll('.row-check').forEach(box => {
+      if (box.dataset.key === k) box.checked = cb.checked;
+    });
+    syncSelectAllState();
     updateSaveButton();
   }
 
@@ -936,7 +1126,21 @@
       const k = box.dataset.key;
       if (cb.checked) selectedKeys.add(k); else selectedKeys.delete(k);
     });
+    const desktop = document.getElementById('check-all');
+    const mobile = document.getElementById('check-all-mobile');
+    if (desktop) desktop.checked = cb.checked;
+    if (mobile) mobile.checked = cb.checked;
     updateSaveButton();
+  }
+
+  function syncSelectAllState() {
+    const keys = new Map();
+    document.querySelectorAll('.row-check').forEach(b => keys.set(b.dataset.key, b.checked));
+    const allOn = keys.size > 0 && [...keys.values()].every(Boolean);
+    const desktop = document.getElementById('check-all');
+    const mobile = document.getElementById('check-all-mobile');
+    if (desktop) desktop.checked = allOn;
+    if (mobile) mobile.checked = allOn;
   }
 
   function updateSaveButton() {
@@ -1068,27 +1272,53 @@
         <td class="address-cell">${esc(l.address)}</td>
         <td><span class="cat-pill">${esc(l.category)}</span></td>
         <td class="type-cell">${esc(l.business_type)}</td>
-        <td class="rating-cell">${l.rating ? `⭐ ${l.rating}${l.reviews ? ` <span style="color:#475569;font-size:0.75rem">(${l.reviews})</span>` : ''}` : '—'}</td>
+        <td class="rating-cell">${ratingHtml(l)}</td>
         <td><a class="maps-link" href="${esc(l.maps_url)}" target="_blank" rel="noopener">View ↗</a></td>
         <td><button class="btn-remove" onclick="removeLead(${l.id})">Remove</button></td>
       </tr>`).join('');
 
+    const cards = filtered.map(l => {
+      const phone = l.phone
+        ? `<a class="phone-cell" href="tel:${esc(String(l.phone).replace(/[^\d+]/g, ''))}">${esc(l.phone)}</a>`
+        : '<span class="phone-cell" style="color:#334155">No phone</span>';
+      return `
+      <div class="lead-card">
+        <div class="lead-card-top">
+          <span class="business-name">${esc(l.name)}</span>
+        </div>
+        <div class="lead-card-meta">
+          <span class="cat-pill">${esc(l.category)}</span>
+          <span class="rating-cell">${ratingHtml(l)}</span>
+          ${phone}
+        </div>
+        ${l.address ? `<div class="address-cell">${esc(l.address)}</div>` : ''}
+        ${l.business_type ? `<div class="type-cell">${esc(l.business_type)}</div>` : ''}
+        <div class="lead-card-actions">
+          <a class="maps-link" href="${esc(l.maps_url)}" target="_blank" rel="noopener">Open in Maps ↗</a>
+          <button class="btn-remove" onclick="removeLead(${l.id})">Remove</button>
+        </div>
+      </div>`;
+    }).join('');
+
     wrap.innerHTML = `
-      <table>
-        <thead>
-          <tr>
-            <th>Business Name</th>
-            <th>Phone</th>
-            <th>Address</th>
-            <th>Category</th>
-            <th>Type</th>
-            <th>Rating</th>
-            <th>Maps</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>${rows}</tbody>
-      </table>`;
+      <div class="table-desktop">
+        <table>
+          <thead>
+            <tr>
+              <th>Business Name</th>
+              <th>Phone</th>
+              <th>Address</th>
+              <th>Category</th>
+              <th>Type</th>
+              <th>Rating</th>
+              <th>Maps</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      <div class="cards">${cards}</div>`;
   }
 
   async function removeLead(id) {
