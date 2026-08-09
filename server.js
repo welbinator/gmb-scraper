@@ -1,5 +1,6 @@
 require('dotenv').config();
 
+const crypto = require('crypto');
 const express = require('express');
 const axios = require('axios');
 const path = require('path');
@@ -279,9 +280,126 @@ function buildMapsUrl(r) {
   return `https://www.google.com/maps/search/?q=${q}`;
 }
 
-// ── Search endpoint ────────────────────────────────────────────────────────────
+// ── Search jobs (async — Cloudflare times out long sync /search at ~100s) ─────
+// Multi-category searches fan out into dozens of sequential Outscraper calls and
+// routinely take 5–15 minutes. We start a background job and return a jobId
+// immediately; the browser polls GET /search/:jobId for progress + results.
 
-app.post('/search', requireAuth, async (req, res) => {
+const searchJobs = new Map(); // jobId -> job
+const JOB_TTL_MS = 60 * 60 * 1000; // keep finished jobs 1 hour for late polls
+
+setInterval(() => {
+  const cutoff = Date.now() - JOB_TTL_MS;
+  for (const [id, job] of searchJobs) {
+    if (job.createdAt < cutoff) searchJobs.delete(id);
+  }
+}, 10 * 60 * 1000).unref();
+
+function publicJob(job) {
+  return {
+    jobId: job.id,
+    status: job.status, // running | done | error
+    progress: job.progress,
+    leads: job.leads,
+    errors: job.errors,
+    stats: job.stats,
+    error: job.error
+  };
+}
+
+async function runSearchJob(job, { city, state, location, categories, apiKey }) {
+  const allLeads = job.leads;
+  const errors = job.errors;
+  const stats = job.stats;
+  const globalSeen = new Set();
+
+  // Pre-count queries so the UI can show "query 12/87"
+  let queriesTotal = 0;
+  for (const cat of categories) {
+    queriesTotal += (CATEGORY_QUERIES[cat.name] || [cat.name]).length;
+  }
+  job.progress.queriesTotal = queriesTotal;
+  job.progress.categoriesTotal = categories.length;
+
+  try {
+    for (let ci = 0; ci < categories.length; ci++) {
+      const cat = categories[ci];
+      const subQueries = CATEGORY_QUERIES[cat.name] || [cat.name];
+      const perQuery = Math.max(20, Math.ceil(cat.limit / subQueries.length));
+
+      job.progress.category = cat.name;
+      job.progress.categoriesDone = ci;
+      console.log(`\n[${cat.name}] Searching for no-website businesses in ${location}`);
+
+      for (const q of subQueries) {
+        const searchQuery = `${q} in ${location}`;
+        job.progress.query = searchQuery;
+        console.log(`  Querying: "${searchQuery}"`);
+
+        try {
+          const raw = await runOutscraperQuery(searchQuery, perQuery, apiKey);
+          stats.total_fetched += raw.length;
+
+          for (const r of raw) {
+            if (!r || !r.name) continue;
+
+            // State filter
+            const resultStateNorm = normalizeState(r.state || r.region || '');
+            const searchStateNorm = normalizeState(state);
+            if (resultStateNorm && searchStateNorm && resultStateNorm !== searchStateNorm) continue;
+
+            const dedupKey = r.place_id || `${r.name}|${r.full_address || ''}`;
+            if (globalSeen.has(dedupKey)) continue;
+            globalSeen.add(dedupKey);
+
+            const hasWebsite = !!(r.website || r.site || '').trim();
+
+            if (hasWebsite) {
+              stats.had_website++;
+              continue; // key filter — skip businesses that DO have a website
+            }
+
+            stats.no_website++;
+            allLeads.push({
+              name: r.name,
+              phone: r.phone || r.phone_number || '',
+              address: r.full_address || `${r.city || city}, ${r.state || state}`,
+              city: r.city || r.district || city,
+              state: r.state || r.region || state,
+              category: cat.name,
+              business_type: r.type || (Array.isArray(r.subtypes) ? r.subtypes[0] : r.subtypes) || '',
+              rating: r.rating || '',
+              reviews: r.reviews || r.reviews_count || '',
+              maps_url: buildMapsUrl(r),
+              place_id: r.place_id || ''
+            });
+          }
+
+          console.log(`    → ${raw.length} raw | ${stats.no_website} leads so far`);
+        } catch (err) {
+          console.error(`  Error for "${searchQuery}": ${err.message}`);
+          errors.push({ category: cat.name, query: searchQuery, error: err.message });
+        }
+
+        job.progress.queriesDone += 1;
+        await new Promise(r => setTimeout(r, 500));
+      }
+
+      job.progress.categoriesDone = ci + 1;
+    }
+
+    job.status = 'done';
+    job.progress.query = '';
+    console.log(`\nDone job ${job.id}. Fetched ${stats.total_fetched} total | ${stats.no_website} no website | ${stats.had_website} had website`);
+  } catch (err) {
+    console.error(`Search job ${job.id} failed:`, err);
+    job.status = 'error';
+    job.error = err.message || 'Search failed';
+  }
+}
+
+// Start a search job — returns immediately with { jobId }. Poll GET /search/:jobId.
+app.post('/search', requireAuth, (req, res) => {
   const { city, state, country, categories } = req.body;
   if (!city || !categories || !categories.length) {
     return res.status(400).json({ error: 'city and categories are required' });
@@ -301,72 +419,43 @@ app.post('/search', requireAuth, async (req, res) => {
   }
   const location = locationParts.join(', ');
 
-  const allLeads = [];
-  const errors = [];
-  const stats = { total_fetched: 0, no_website: 0, had_website: 0 };
+  const jobId = crypto.randomBytes(16).toString('hex');
+  const job = {
+    id: jobId,
+    userId: req.session.userId,
+    status: 'running',
+    createdAt: Date.now(),
+    progress: {
+      category: '',
+      query: '',
+      categoriesDone: 0,
+      categoriesTotal: categories.length,
+      queriesDone: 0,
+      queriesTotal: 0
+    },
+    leads: [],
+    errors: [],
+    stats: { total_fetched: 0, no_website: 0, had_website: 0 },
+    error: null
+  };
+  searchJobs.set(jobId, job);
 
-  for (const cat of categories) {
-    const subQueries = CATEGORY_QUERIES[cat.name] || [cat.name];
-    const perQuery = Math.max(20, Math.ceil(cat.limit / subQueries.length));
-    const seen = new Set();
+  // Fire-and-forget — do not await. Client polls for completion.
+  setImmediate(() => {
+    runSearchJob(job, { city, state, location, categories, apiKey });
+  });
 
-    console.log(`\n[${cat.name}] Searching for no-website businesses in ${location}`);
+  res.json({ jobId });
+});
 
-    for (const q of subQueries) {
-      const searchQuery = `${q} in ${location}`;
-      console.log(`  Querying: "${searchQuery}"`);
-
-      try {
-        const raw = await runOutscraperQuery(searchQuery, perQuery, apiKey);
-        stats.total_fetched += raw.length;
-
-        for (const r of raw) {
-          if (!r || !r.name) continue;
-
-          // State filter
-          const resultStateNorm = normalizeState(r.state || r.region || '');
-          const searchStateNorm = normalizeState(state);
-          if (resultStateNorm && searchStateNorm && resultStateNorm !== searchStateNorm) continue;
-
-          const dedupKey = r.place_id || `${r.name}|${r.full_address || ''}`;
-          if (seen.has(dedupKey)) continue;
-          seen.add(dedupKey);
-
-          const hasWebsite = !!(r.website || r.site || '').trim();
-
-          if (hasWebsite) {
-            stats.had_website++;
-            continue; // this is the key filter — skip businesses that DO have a website
-          }
-
-          stats.no_website++;
-          allLeads.push({
-            name: r.name,
-            phone: r.phone || r.phone_number || '',
-            address: r.full_address || `${r.city || city}, ${r.state || state}`,
-            city: r.city || r.district || city,
-            state: r.state || r.region || state,
-            category: cat.name,
-            business_type: r.type || (Array.isArray(r.subtypes) ? r.subtypes[0] : r.subtypes) || '',
-            rating: r.rating || '',
-            reviews: r.reviews || r.reviews_count || '',
-            maps_url: buildMapsUrl(r),
-            place_id: r.place_id || ''
-          });
-        }
-
-        console.log(`    → ${raw.length} raw | ${stats.no_website} leads so far`);
-      } catch (err) {
-        console.error(`  Error for "${searchQuery}": ${err.message}`);
-        errors.push({ category: cat.name, query: searchQuery, error: err.message });
-      }
-
-      await new Promise(r => setTimeout(r, 500));
-    }
+// Poll job status / partial results. Scoped to the owning user.
+app.get('/search/:jobId', requireAuth, (req, res) => {
+  const job = searchJobs.get(req.params.jobId);
+  if (!job || job.userId !== req.session.userId) {
+    return res.status(404).json({ error: 'Job not found' });
   }
-
-  console.log(`\nDone. Fetched ${stats.total_fetched} total | ${stats.no_website} no website | ${stats.had_website} had website`);
-  res.json({ leads: allLeads, errors, stats });
+  res.set('Cache-Control', 'no-store');
+  res.json(publicJob(job));
 });
 
 // ── CSV download ───────────────────────────────────────────────────────────────

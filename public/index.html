@@ -704,6 +704,116 @@
 
   // ── Search ──────────────────────────────────────────────────────────────────
 
+  let activePollTimer = null;
+  let lastRenderedLeadCount = -1;
+
+  function stopPolling() {
+    if (activePollTimer) { clearTimeout(activePollTimer); activePollTimer = null; }
+  }
+
+  function showProgress(progress, stats) {
+    const p = progress || {};
+    const s = stats || {};
+    const catLine = p.category
+      ? `Category: <strong style="color:#e2e8f0">${esc(p.category)}</strong>` +
+        (p.categoriesTotal ? ` (${p.categoriesDone || 0}/${p.categoriesTotal})` : '')
+      : 'Starting…';
+    const queryLine = p.query
+      ? `<div style="color:#64748b;font-size:0.82rem;margin-top:6px">Query: ${esc(p.query)}</div>`
+      : '';
+    const counts = p.queriesTotal
+      ? `<div style="color:#94a3b8;font-size:0.85rem;margin-top:14px">` +
+        `Query ${p.queriesDone || 0} of ${p.queriesTotal} · ` +
+        `<span style="color:#f97316;font-weight:600">${s.no_website || 0}</span> leads · ` +
+        `${s.total_fetched || 0} scanned</div>`
+      : '';
+    document.getElementById('table-wrap').innerHTML = `
+      <div class="progress-wrap">
+        <div class="progress-label">
+          Searching Google Maps for businesses without websites…<br>
+          <small style="color:#64748b">Big multi-category runs can take several minutes — hang tight</small>
+        </div>
+        <div class="spinner"></div>
+        <div style="margin-top:22px;color:#94a3b8;font-size:0.9rem">${catLine}${queryLine}${counts}</div>
+      </div>`;
+  }
+
+  function applySearchResults(data) {
+    allLeads = data.leads || [];
+    lastStats = data.stats || {};
+    selectedKeys.clear();
+
+    document.getElementById('stat-leads').textContent = lastStats.no_website || 0;
+    document.getElementById('stat-had').textContent = lastStats.had_website || 0;
+    document.getElementById('stat-total').textContent = lastStats.total_fetched || 0;
+    document.getElementById('stats-bar').style.display = 'flex';
+
+    const cats = [...new Set(allLeads.map(l => l.category))].sort();
+    const catSel = document.getElementById('filter-cat');
+    catSel.innerHTML = '<option value="">All categories</option>';
+    cats.forEach(c => {
+      const opt = document.createElement('option');
+      opt.value = c; opt.textContent = c;
+      catSel.appendChild(opt);
+    });
+
+    document.getElementById('toolbar').style.display = 'flex';
+
+    if (data.errors && data.errors.length) {
+      console.warn('Some queries had errors:', data.errors);
+    }
+
+    lastRenderedLeadCount = allLeads.length;
+    renderTable();
+  }
+
+  async function pollSearchJob(jobId, btn) {
+    activePollTimer = null;
+    try {
+      const res = await fetch(`/search/${jobId}`, { headers: { Accept: 'application/json' } });
+      const text = await res.text();
+      let data;
+      try { data = JSON.parse(text); }
+      catch (_) {
+        throw new Error(res.status === 524 || res.status === 504
+          ? 'Search timed out talking to the server. Please try again.'
+          : `Server error (${res.status})`);
+      }
+      if (!res.ok) throw new Error(data.error || 'Search failed');
+
+      if (data.status === 'running') {
+        showProgress(data.progress, data.stats);
+        // Live-update stats bar as leads trickle in
+        if (data.stats) {
+          document.getElementById('stat-leads').textContent = data.stats.no_website || 0;
+          document.getElementById('stat-had').textContent = data.stats.had_website || 0;
+          document.getElementById('stat-total').textContent = data.stats.total_fetched || 0;
+          document.getElementById('stats-bar').style.display = 'flex';
+        }
+        activePollTimer = setTimeout(() => pollSearchJob(jobId, btn), 2000);
+        return;
+      }
+
+      if (data.status === 'error') {
+        throw new Error(data.error || 'Search failed');
+      }
+
+      // done
+      applySearchResults(data);
+    } catch (err) {
+      document.getElementById('table-wrap').innerHTML = `
+        <div class="error-banner" style="margin:20px">
+          ❌ Search failed: ${esc(err.message)}
+        </div>`;
+    } finally {
+      // Only re-enable the button when we're not still polling
+      if (!activePollTimer) {
+        btn.disabled = false;
+        btn.textContent = '🔍 Find Leads';
+      }
+    }
+  }
+
   document.getElementById('btn-search').addEventListener('click', async () => {
     const city = document.getElementById('city').value.trim();
     const state = document.getElementById('state').value;
@@ -713,61 +823,41 @@
     if (!city) { alert('Please enter a city.'); return; }
     if (!categories.length) { alert('Select at least one category.'); return; }
 
+    stopPolling();
+    lastRenderedLeadCount = -1;
+
     const btn = document.getElementById('btn-search');
     btn.disabled = true;
     btn.textContent = '⏳ Searching…';
 
     document.getElementById('stats-bar').style.display = 'none';
     document.getElementById('toolbar').style.display = 'none';
-    document.getElementById('table-wrap').innerHTML = `
-      <div class="progress-wrap">
-        <div class="progress-label">Fetching businesses and filtering those without websites…<br><small style="color:#475569">This can take a minute depending on categories selected</small></div>
-        <div class="spinner"></div>
-      </div>`;
+    showProgress({ category: '', queriesDone: 0, queriesTotal: 0 }, {});
 
     try {
       const res = await fetch('/search', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
         body: JSON.stringify({ city, state, country, categories })
       });
-      const data = await res.json();
-
-      if (!res.ok) throw new Error(data.error || 'Search failed');
-
-      allLeads = data.leads || [];
-      lastStats = data.stats || {};
-      selectedKeys.clear();
-
-      // Update stats
-      document.getElementById('stat-leads').textContent = lastStats.no_website || 0;
-      document.getElementById('stat-had').textContent = lastStats.had_website || 0;
-      document.getElementById('stat-total').textContent = lastStats.total_fetched || 0;
-      document.getElementById('stats-bar').style.display = 'flex';
-
-      // Build category filter
-      const cats = [...new Set(allLeads.map(l => l.category))].sort();
-      const catSel = document.getElementById('filter-cat');
-      catSel.innerHTML = '<option value="">All categories</option>';
-      cats.forEach(c => {
-        const opt = document.createElement('option');
-        opt.value = c; opt.textContent = c;
-        catSel.appendChild(opt);
-      });
-
-      document.getElementById('toolbar').style.display = 'flex';
-
-      if (data.errors && data.errors.length) {
-        console.warn('Some queries had errors:', data.errors);
+      const text = await res.text();
+      let data;
+      try { data = JSON.parse(text); }
+      catch (_) {
+        throw new Error(res.status === 524 || res.status === 504
+          ? 'Search timed out. Try fewer categories or a lower limit.'
+          : `Server error (${res.status})`);
       }
+      if (!res.ok) throw new Error(data.error || 'Search failed');
+      if (!data.jobId) throw new Error('Server did not return a job id');
 
-      renderTable();
+      // Kick off polling — button stays disabled until job finishes
+      activePollTimer = setTimeout(() => pollSearchJob(data.jobId, btn), 800);
     } catch (err) {
       document.getElementById('table-wrap').innerHTML = `
         <div class="error-banner" style="margin:20px">
-          ❌ Search failed: ${err.message}
+          ❌ Search failed: ${esc(err.message)}
         </div>`;
-    } finally {
       btn.disabled = false;
       btn.textContent = '🔍 Find Leads';
     }
