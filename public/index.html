@@ -739,6 +739,28 @@
   // Stable dedup key (mirrors the server)
   function keyOf(l) { return l.place_id || `${l.name}|${l.address || ''}`; }
 
+  // Rebuild Maps links client-side so old broken place_id: URLs still open.
+  // Mobile Maps turns `.../place/?q=place_id:ChIJ...` into a search for ":ChIJ...".
+  function mapsHref(l) {
+    const placeId = (l.place_id || '').trim();
+    const name = (l.name || '').trim();
+    const address = (l.address || '').trim();
+    if (placeId) {
+      const params = new URLSearchParams({
+        api: '1',
+        query: name || address || placeId,
+        query_place_id: placeId
+      });
+      return `https://www.google.com/maps/search/?${params.toString()}`;
+    }
+    // Prefer a non-broken stored URL; otherwise fall back to name+address search
+    const stored = (l.maps_url || '').trim();
+    if (stored && !/place_id:|q=place_id/i.test(stored)) return stored;
+    const q = [name, address].filter(Boolean).join(' ').trim();
+    if (!q) return 'https://www.google.com/maps';
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
+  }
+
   // ── Location dropdowns ──────────────────────────────────────────────────────
 
   async function loadCountries() {
@@ -1050,7 +1072,7 @@
         <td><span class="cat-pill">${esc(l.category)}</span></td>
         <td class="type-cell">${esc(l.business_type)}</td>
         <td class="rating-cell">${ratingHtml(l)}</td>
-        <td><a class="maps-link" href="${esc(l.maps_url)}" target="_blank" rel="noopener">View ↗</a></td>
+        <td><a class="maps-link" href="${esc(mapsHref(l))}" target="_blank" rel="noopener">View ↗</a></td>
       </tr>`;
     }).join('');
 
@@ -1074,7 +1096,7 @@
         ${l.address ? `<div class="address-cell">${esc(l.address)}</div>` : ''}
         ${l.business_type ? `<div class="type-cell">${esc(l.business_type)}</div>` : ''}
         <div class="lead-card-actions">
-          <a class="maps-link" href="${esc(l.maps_url)}" target="_blank" rel="noopener">Open in Maps ↗</a>
+          <a class="maps-link" href="${esc(mapsHref(l))}" target="_blank" rel="noopener">Open in Maps ↗</a>
         </div>
       </div>`;
     }).join('');
@@ -1273,7 +1295,7 @@
         <td><span class="cat-pill">${esc(l.category)}</span></td>
         <td class="type-cell">${esc(l.business_type)}</td>
         <td class="rating-cell">${ratingHtml(l)}</td>
-        <td><a class="maps-link" href="${esc(l.maps_url)}" target="_blank" rel="noopener">View ↗</a></td>
+        <td><a class="maps-link" href="${esc(mapsHref(l))}" target="_blank" rel="noopener">View ↗</a></td>
         <td><button class="btn-remove" onclick="removeLead(${l.id})">Remove</button></td>
       </tr>`).join('');
 
@@ -1294,7 +1316,7 @@
         ${l.address ? `<div class="address-cell">${esc(l.address)}</div>` : ''}
         ${l.business_type ? `<div class="type-cell">${esc(l.business_type)}</div>` : ''}
         <div class="lead-card-actions">
-          <a class="maps-link" href="${esc(l.maps_url)}" target="_blank" rel="noopener">Open in Maps ↗</a>
+          <a class="maps-link" href="${esc(mapsHref(l))}" target="_blank" rel="noopener">Open in Maps ↗</a>
           <button class="btn-remove" onclick="removeLead(${l.id})">Remove</button>
         </div>
       </div>`;

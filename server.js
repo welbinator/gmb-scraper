@@ -273,11 +273,25 @@ async function runOutscraperQuery(searchQuery, limit, apiKey) {
   return [];
 }
 
-// Build a Google Maps search URL from place_id or name+address
+// Build a Google Maps URL that works on desktop + mobile apps.
+// The old `.../place/?q=place_id:ChIJ...` form gets mangled by the mobile
+// Maps app into a literal search for ":ChIJ..." → "No results found".
+// Official format: https://developers.google.com/maps/documentation/urls/get-started
 function buildMapsUrl(r) {
-  if (r.place_id) return `https://www.google.com/maps/place/?q=place_id:${r.place_id}`;
-  const q = encodeURIComponent(`${r.name} ${r.full_address || ''}`);
-  return `https://www.google.com/maps/search/?q=${q}`;
+  const placeId = (r.place_id || '').trim();
+  const name = (r.name || '').trim();
+  const address = (r.full_address || r.address || '').trim();
+  if (placeId) {
+    const params = new URLSearchParams({
+      api: '1',
+      query: name || address || placeId,
+      query_place_id: placeId
+    });
+    return `https://www.google.com/maps/search/?${params.toString()}`;
+  }
+  const q = [name, address].filter(Boolean).join(' ').trim();
+  if (!q) return 'https://www.google.com/maps';
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
 }
 
 // ── Search jobs (async — Cloudflare times out long sync /search at ~100s) ─────
@@ -513,6 +527,13 @@ app.post('/leads', requireAuth, (req, res) => {
     let saved = 0;
     for (const l of rows) {
       if (!l || !l.name) continue;
+      // Always rebuild maps_url so we never persist the broken place_id: form
+      const maps_url = buildMapsUrl({
+        place_id: l.place_id,
+        name: l.name,
+        full_address: l.address,
+        address: l.address
+      });
       const info = insert.run({
         user_id: req.session.userId,
         dedup_key: leadDedupKey(l),
@@ -525,7 +546,7 @@ app.post('/leads', requireAuth, (req, res) => {
         business_type: l.business_type || '',
         rating: (l.rating || '').toString(),
         reviews: (l.reviews || '').toString(),
-        maps_url: l.maps_url || '',
+        maps_url,
         place_id: l.place_id || ''
       });
       saved += info.changes;
